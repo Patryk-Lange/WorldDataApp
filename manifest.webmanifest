@@ -1,0 +1,20 @@
+{
+  "name": "World Data Explorer",
+  "short_name": "WDE",
+  "description": "Interactive world map comparing GDP, inflation, unemployment and more across 170+ countries.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "categories": ["education", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

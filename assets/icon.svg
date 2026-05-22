@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="World Data Explorer icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#22c55e" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="172" fill="none" stroke="url(#ring)" stroke-width="30" />
+  <path d="M118 256h276M256 118c36 34 58 84 58 138s-22 104-58 138c-36-34-58-84-58-138s22-104 58-138z" fill="none" stroke="#7dd3fc" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" />
+  <path d="M342 166l64-30-22 66M354 318l64 30-64 30" fill="none" stroke="#86efac" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

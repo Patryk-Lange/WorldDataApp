@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Test artifacts
+playwright-report/
+test-results/
+*.trace
+reports/perf/latest.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+test_output.txt
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+
+# Build/editor artifacts
+coverage/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local backups
+js/app.js.bak

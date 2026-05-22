@@ -1,0 +1,24 @@
+{
+  "budgets": {
+    "maxDomContentLoadedMs": 2500,
+    "maxLoadMs": 5000,
+    "maxAppReadyMs": 4500,
+    "maxFirstContentfulPaintMs": 2200,
+    "maxResourceCount": 35,
+    "maxTransferSizeBytes": 2500000,
+    "maxTotalScriptBytes": 1400000,
+    "maxRegressionRatio": 1.35
+  },
+  "metrics": {
+    "appReadyMs": 874,
+    "domContentLoadedMs": 660.6,
+    "loadMs": 695,
+    "firstContentfulPaintMs": 236,
+    "resourceCount": 3,
+    "transferSizeBytes": 134436,
+    "totalScriptBytes": 95310,
+    "measuredAt": "2026-05-22T17:01:34.945Z",
+    "elapsedWallClockMs": 982,
+    "appUrl": "file:///C:/Users/palange/Projects/workshop-app/index.html"
+  }
+}

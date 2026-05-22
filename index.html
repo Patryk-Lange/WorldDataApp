@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; worker-src 'self'; manifest-src 'self';" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title data-i18n="app.title">World Data Explorer</title>
+  <meta name="description" data-i18n-content="app.description" content="Interactive world map comparing GDP, inflation, unemployment and more across 170+ countries." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main-content" data-i18n="app.skipToMain">Skip to main content</a>
+  <div id="app">
+
+    <!-- ═══════════════════════════════════════════════════
+         Header
+    ═══════════════════════════════════════════════════ -->
+    <header>
+      <h1 data-i18n="header.title">🌐 World Data Explorer</h1>
+
+      <!-- Scrollable indicator tabs – populated by JS -->
+      <div class="indicator-tabs" role="tablist" aria-label="Data indicator" data-i18n-aria-label="header.indicatorsAria"></div>
+
+      <span class="header-hint" data-i18n="header.hint">Click to select · click more countries to compare · / to search</span>
+
+      <!-- Currency picker (affects GDP, GDP/Capita, Trade Balance display) -->
+      <div class="currency-picker-wrap" title="Display currency for monetary values" data-i18n-title="header.currencyTitle">
+        <label for="currency-select" class="currency-label">💱</label>
+        <select id="currency-select" class="currency-select" aria-label="Display currency" data-i18n-aria-label="header.currencyAria"></select>
+      </div>
+
+      <!-- Language picker -->
+      <div class="currency-picker-wrap" title="Display language" data-i18n-title="header.languageTitle">
+        <label for="language-select" class="currency-label" data-i18n="header.languageLabel">🌐</label>
+        <select id="language-select" class="currency-select" aria-label="Display language" data-i18n-aria-label="header.languageAria"></select>
+      </div>
+
+      <div class="header-spacer"></div>
+
+      <!-- Correlation explorer toggle -->
+      <button class="header-btn" id="correl-btn" title="Correlation explorer" data-i18n-title="header.correlateTitle" aria-pressed="false" data-i18n="header.correlateButton">
+        ⊕ Correlate
+      </button>
+
+      <!-- Export dropdown -->
+      <div class="header-export-wrap">
+        <button class="header-btn" id="export-btn" title="Export data or map" data-i18n-title="header.exportTitle" data-i18n="header.exportButton">⬇ Export</button>
+        <div id="export-menu" class="export-menu" role="menu" aria-label="Export options" data-i18n-aria-label="header.exportMenuAria">
+          <button id="export-csv-btn" class="export-menu-btn" role="menuitem" data-i18n="header.exportCsv">📄 Export CSV</button>
+          <button id="export-png-btn" class="export-menu-btn" role="menuitem" data-i18n="header.exportPng">🖼 Export PNG</button>
+        </div>
+      </div>
+
+      <!-- Share button -->
+      <button class="header-btn" id="share-btn" title="Share or embed this view" data-i18n-title="header.shareTitle" data-i18n="header.shareButton">🔗 Share</button>
+
+      <!-- Install PWA button (shown only when install prompt is available) -->
+      <button class="header-btn is-hidden" id="install-btn" title="Install app for offline use" data-i18n-title="header.installTitle" data-i18n="header.installButton" aria-hidden="true">⬇ Install App</button>
+
+      <!-- Reopen welcome guide -->
+      <button class="header-btn" id="welcome-open-btn" title="Open welcome guide" data-i18n-title="welcome.openTitle" aria-pressed="false" data-i18n="welcome.openButton">ℹ Welcome</button>
+    </header>
+
+    <!-- Mobile view switcher -->
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile view switch" data-i18n-aria-label="mobile.switchAria">
+      <button class="mobile-nav-btn active" type="button" data-view="map" aria-pressed="true" data-i18n="mobile.map">🗺 Map</button>
+      <button class="mobile-nav-btn" type="button" data-view="data" aria-pressed="false" data-i18n="mobile.data">📊 Data</button>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════════════
+         Main
+    ═══════════════════════════════════════════════════ -->
+    <main id="main-content" tabindex="-1">
+
+      <!-- ── Map area ── -->
+      <div id="map-container" role="application" aria-label="Interactive world map. Use arrow keys to navigate countries, Enter to select." data-i18n-aria-label="map.containerAria">
+        <svg id="world-map" aria-label="World map" data-i18n-aria-label="map.svgAria"></svg>
+        <div id="tooltip" role="tooltip" aria-live="polite"></div>
+        <button id="reset-zoom" title="Reset zoom to world view" data-i18n-title="map.resetViewTitle" data-i18n="map.resetView">⌂ Reset view</button>
+
+        <!-- Correlation scatter plot (overlays map) -->
+        <div id="correlation-view" role="region" aria-label="Correlation explorer" data-i18n-aria-label="correlation.regionAria">
+          <div class="corr-title">
+            <span data-i18n="correlation.title">⊕ Correlation Explorer</span>
+            <button id="correl-close" data-i18n="correlation.close">✕ Close</button>
+          </div>
+          <div class="correlation-controls">
+            <div class="axis-select-group">
+              <label for="correl-x-axis" data-i18n="correlation.xAxis">X Axis:</label>
+              <select id="correl-x-axis"></select>
+            </div>
+            <div class="axis-select-group">
+              <label for="correl-y-axis" data-i18n="correlation.yAxis">Y Axis:</label>
+              <select id="correl-y-axis"></select>
+            </div>
+            <label class="corr-toggle">
+              <input type="checkbox" id="correl-trend" checked> <span data-i18n="correlation.trendLine">Trend line</span>
+            </label>
+            <label class="corr-toggle">
+              <input type="checkbox" id="correl-outliers" checked> <span data-i18n="correlation.outliers">Highlight outliers</span>
+            </label>
+          </div>
+          <svg id="scatter-svg" aria-label="Scatter plot" data-i18n-aria-label="correlation.scatterAria"></svg>
+          <div id="corr-stats"></div>
+        </div>
+      </div>
+
+      <!-- ── Sidebar ── -->
+      <aside id="info-panel" aria-label="Country details and statistics" data-i18n-aria-label="sidebar.aria">
+
+        <!-- Search -->
+        <div id="search-container" role="search">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input id="search-input" type="search" placeholder="Search countries… (or press /)" data-i18n-placeholder="search.placeholder"
+                 autocomplete="off" aria-label="Search countries" data-i18n-aria-label="search.aria" aria-autocomplete="list"
+                 aria-controls="search-results" />
+          <div id="search-results" role="listbox" aria-label="Search results" data-i18n-aria-label="search.resultsAria"></div>
+        </div>
+
+        <!-- Group / region filter -->
+        <div id="group-selector-row">
+          <label for="group-selector" data-i18n="group.filterLabel">Filter:</label>
+          <select id="group-selector" aria-label="Filter by region or group" data-i18n-aria-label="group.filterAria"></select>
+        </div>
+
+        <!-- Value range filter (collapsible) -->
+        <div id="filter-panel" role="region" aria-label="Value filters" data-i18n-aria-label="filter.panelAria">
+          <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-body">
+            <span data-i18n="filter.toggle">▾ Value Filters</span> <span class="filter-arrow">▾</span>
+          </button>
+          <div id="filter-body" aria-hidden="true">
+            <div class="filter-row">
+              <label data-i18n="filter.valueRange">Value range</label>
+              <div class="filter-range-row">
+                <input type="number" id="filter-min" placeholder="Min" data-i18n-placeholder="filter.min" aria-label="Minimum value" data-i18n-aria-label="filter.minAria" />
+                <span class="filter-range-sep">–</span>
+                <input type="number" id="filter-max" placeholder="Max" data-i18n-placeholder="filter.max" aria-label="Maximum value" data-i18n-aria-label="filter.maxAria" />
+              </div>
+            </div>
+            <div class="filter-chips" id="filter-chips" aria-live="polite"></div>
+            <button id="filter-reset" data-i18n="filter.reset">Reset filters</button>
+          </div>
+        </div>
+
+        <!-- Comparison panel (multi-country, shown when ≥2 selected) -->
+        <div id="comparison-panel" aria-live="polite" aria-label="Country comparison" data-i18n-aria-label="comparison.aria"></div>
+
+        <!-- Detail card (single country) -->
+        <div id="detail-card" aria-live="polite" aria-label="Country details" data-i18n-aria-label="detail.aria"></div>
+
+        <!-- Colour legend -->
+        <div id="legend" aria-label="Map colour legend" data-i18n-aria-label="legend.aria"></div>
+
+        <!-- Top 10 list -->
+        <section id="top-economies">
+          <h3 data-i18n="top.heading">Top 10</h3>
+          <ol id="top-list" aria-label="Top 10 countries by selected indicator" data-i18n-aria-label="top.aria"></ol>
+        </section>
+
+        <!-- Watchlist / bookmarks -->
+        <div id="watchlist-section" role="region" aria-label="Bookmarked countries" data-i18n-aria-label="watchlist.aria">
+          <button id="watchlist-toggle" type="button" aria-expanded="false" aria-controls="watchlist-body">
+            <span data-i18n="watchlist.toggle">★ My Watchlist</span> <span class="watchlist-arrow">▾</span>
+          </button>
+          <div id="watchlist-body" aria-live="polite"></div>
+        </div>
+
+      </aside>
+    </main>
+
+    <!-- ── Footer status bar ── -->
+    <div id="status-bar" role="status" aria-live="polite">
+      <span class="status-source" id="status-source" data-i18n="status.loading">Loading…</span>
+      <span class="status-offline" id="status-offline" style="display:none" data-i18n="status.offline">⚠ Offline – cached data</span>
+    </div>
+
+  </div><!-- /#app -->
+
+  <!-- ═══════════════════════════════════════════════════
+       History modal
+  ═══════════════════════════════════════════════════ -->
+  <div id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" aria-hidden="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="history-modal-title" data-i18n="history.title">Historical Trend</h3>
+        <span class="modal-subtitle" id="history-modal-subtitle"></span>
+        <button class="modal-close" id="history-modal-close" aria-label="Close history modal" data-i18n-aria-label="history.closeAria">✕</button>
+      </div>
+      <div class="modal-controls">
+        <button class="zoom-btn" data-years="3" data-i18n="history.zoom3">3 yr</button>
+        <button class="zoom-btn" data-years="5" data-i18n="history.zoom5">5 yr</button>
+        <button class="zoom-btn active" data-years="10" data-i18n="history.zoom10">10 yr</button>
+        <label class="modal-toggle">
+          <input type="checkbox" id="toggle-world-ref" checked> <span data-i18n="history.worldAvg">World avg</span>
+        </label>
+        <label class="modal-toggle">
+          <input type="checkbox" id="toggle-region-ref" checked> <span data-i18n="history.regionAvg">Region avg</span>
+        </label>
+      </div>
+      <div class="modal-body">
+        <svg id="history-chart-svg" aria-label="Historical trend chart" data-i18n-aria-label="history.chartAria"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       Share modal
+  ═══════════════════════════════════════════════════ -->
+  <div id="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" aria-hidden="true">
+    <div class="share-box">
+      <h3 id="share-modal-title"><span data-i18n="share.title">Share this view</span>
+        <button class="modal-close" id="share-modal-close" aria-label="Close share modal" data-i18n-aria-label="share.closeAria">✕</button>
+      </h3>
+      <div class="share-url-row">
+        <input class="share-url-input" id="share-url-input" type="text" readonly aria-label="Share URL" data-i18n-aria-label="share.urlAria" />
+        <button class="copy-btn" id="copy-url-btn" data-i18n="share.copy">Copy</button>
+      </div>
+      <div class="share-embed-label" data-i18n="share.embedLabel">Embed code</div>
+      <div class="share-embed-code" id="share-embed-code"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       Welcome modal
+  ═══════════════════════════════════════════════════ -->
+  <div id="welcome-modal" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title" aria-describedby="welcome-modal-intro" aria-hidden="true">
+    <div class="welcome-box">
+      <div class="welcome-header">
+        <h2 id="welcome-modal-title" data-i18n="welcome.title">Welcome to World Data Explorer</h2>
+        <button class="modal-close" id="welcome-modal-close" aria-label="Close welcome dialog" data-i18n-aria-label="welcome.closeAria">✕</button>
+      </div>
+
+      <div class="welcome-body">
+        <p id="welcome-modal-intro" class="welcome-intro" data-i18n="welcome.intro">World Data Explorer helps you compare economic, social, and environmental indicators across 170+ countries on an interactive map.</p>
+
+        <section class="welcome-section">
+          <h3 data-i18n="welcome.purposeTitle">Goal</h3>
+          <p data-i18n="welcome.purposeText">Use one map to quickly spot patterns, compare countries, and move from global rankings to country-level details.</p>
+        </section>
+
+        <section class="welcome-section">
+          <h3 data-i18n="welcome.whatYouCanDoTitle">What you can do</h3>
+          <ul class="welcome-list">
+            <li data-i18n="welcome.what1">Switch across GDP, inflation, unemployment, population, life expectancy, inequality, CO2/capita, trade balance, and debt/GDP.</li>
+            <li data-i18n="welcome.what2">Select countries on the map or search, then compare up to 5 countries side by side.</li>
+            <li data-i18n="welcome.what3">Filter by region and value, save bookmarks, and review historical trends where available.</li>
+          </ul>
+        </section>
+
+        <section class="welcome-section">
+          <h3 data-i18n="welcome.dataSourcesTitle">Data sources</h3>
+          <p data-i18n="welcome.dataSourcesText">Indicator snapshots come from World Bank, Trading Economics, UN, WHO, IEA, WTO, and IMF datasets bundled with this app. Map geometry comes from world-atlas (TopoJSON).</p>
+        </section>
+
+        <section class="welcome-section">
+          <h3 data-i18n="welcome.gettingStartedTitle">Getting started</h3>
+          <ol class="welcome-list welcome-list-ordered">
+            <li data-i18n="welcome.step1">Choose an indicator from the top tabs.</li>
+            <li data-i18n="welcome.step2">Click a country (or press / to search), then click additional countries to compare up to 5.</li>
+            <li data-i18n="welcome.step3">Use Correlate, Export, and Share in the header for deeper analysis and reporting.</li>
+          </ol>
+        </section>
+
+        <section class="welcome-section">
+          <h3 data-i18n="welcome.notesTitle">Important notes</h3>
+          <p data-i18n="welcome.notesText">Values are curated snapshots (not real-time), coverage differs by country, and currency conversion uses fixed reference rates for display.</p>
+        </section>
+      </div>
+
+      <div class="welcome-footer">
+        <label class="welcome-dont-show">
+          <input type="checkbox" id="welcome-dont-show" />
+          <span data-i18n="welcome.dontShowAgain">Don't show again</span>
+        </label>
+        <button class="welcome-cta" id="welcome-continue-btn" data-i18n="welcome.cta">Get Started</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       Scripts – order matters (dependencies first)
+  ═══════════════════════════════════════════════════ -->
+  <!-- CDN: D3 v7 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <!-- CDN: TopoJSON client -->
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+
+  <!-- i18n resources and locale manager -->
+  <script src="js/i18n.js"></script>
+
+  <!-- Config & event bus (must load before app.js) -->
+  <script src="js/config.js"></script>
+  <script src="js/eventbus.js"></script>
+
+  <!-- Country code mapping + names -->
+  <script src="js/countries.js"></script>
+
+  <!-- Core data files -->
+  <script src="data/gdp.js"></script>
+  <script src="data/inflation.js"></script>
+  <script src="data/unemployment.js"></script>
+
+  <!-- Additional indicator data -->
+  <script src="data/gdp_per_capita.js"></script>
+  <script src="data/population.js"></script>
+  <script src="data/life_expectancy.js"></script>
+  <script src="data/gini.js"></script>
+  <script src="data/co2.js"></script>
+  <script src="data/trade_balance.js"></script>
+  <script src="data/debt_to_gdp.js"></script>
+
+  <!-- Historical data (used by sparklines & trend modal) -->
+  <script src="data/history.js"></script>
+
+  <!-- Regions & supranational groups -->
+  <script src="data/regions.js"></script>
+
+  <!-- Main application (last) -->
+  <script src="js/app.js"></script>
+</body>
+</html>

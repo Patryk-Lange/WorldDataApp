@@ -1,0 +1,10 @@
+{
+  "maxDomContentLoadedMs": 2500,
+  "maxLoadMs": 5000,
+  "maxAppReadyMs": 4500,
+  "maxFirstContentfulPaintMs": 2200,
+  "maxResourceCount": 35,
+  "maxTransferSizeBytes": 2500000,
+  "maxTotalScriptBytes": 1400000,
+  "maxRegressionRatio": 1.35
+}

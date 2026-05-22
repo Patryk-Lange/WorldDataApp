@@ -1,0 +1,41 @@
+{
+  "name": "workshop-app",
+  "version": "1.0.0",
+  "description": "Interactive world data explorer with D3 choropleth map, comparison analytics, and Playwright E2E coverage.",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "npx http-server . -p 4173 -c-1",
+    "lint": "eslint js/**/*.js tests/**/*.js playwright.config.js service-worker.js",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "playwright test",
+    "test:a11y": "playwright test tests/e2e-a11y.spec.js",
+    "test:visual": "cross-env PW_INCLUDE_VISUAL=1 playwright test tests/visual",
+    "test:visual:update": "cross-env PW_INCLUDE_VISUAL=1 playwright test tests/visual --update-snapshots",
+    "perf:check": "node scripts/perf-budget.mjs",
+    "perf:baseline": "node scripts/perf-budget.mjs --update-baseline",
+    "test:smoke": "playwright test tests/e2e-simple.spec.js",
+    "test:critical": "playwright test tests/e2e-critical.spec.js",
+    "test:all": "npm run test && npm run perf:check"
+  },
+  "keywords": [
+    "d3",
+    "playwright",
+    "data-visualization",
+    "world-map",
+    "frontend"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.60.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0"
+  }
+}

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  lint-test-a11y-perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run E2E suites
+        run: npm run test
+
+      - name: Run accessibility scans
+        run: npm run test:a11y
+
+      - name: Run performance budget check
+        run: npm run perf:check
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: reports/perf/latest.json
+
+  visual-regression:
+    runs-on: windows-latest
+    needs: lint-test-a11y-perf
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Run visual regression suite
+        run: npm run test:visual
