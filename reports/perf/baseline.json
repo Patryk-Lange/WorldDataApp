@@ -10,15 +10,17 @@
     "maxRegressionRatio": 1.35
   },
   "metrics": {
-    "appReadyMs": 874,
-    "domContentLoadedMs": 660.6,
-    "loadMs": 695,
-    "firstContentfulPaintMs": 236,
+    "appReadyMs": 811.1,
+    "domContentLoadedMs": 480.1,
+    "loadMs": 483.9,
+    "firstContentfulPaintMs": 308,
     "resourceCount": 3,
-    "transferSizeBytes": 134436,
-    "totalScriptBytes": 95310,
-    "measuredAt": "2026-05-22T17:01:34.945Z",
-    "elapsedWallClockMs": 982,
+    "transferSizeBytes": 133536,
+    "totalScriptBytes": 94710,
+    "measuredAt": "2026-05-22T19:06:40.592Z",
+    "elapsedWallClockMs": 6915,
+    "perfSampleCount": 3,
+    "perfWarmupRuns": 1,
     "appUrl": "file:///C:/Users/palange/Projects/workshop-app/index.html"
   }
 }
