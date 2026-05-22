@@ -915,7 +915,7 @@
 
     applyMapColors();
     renderSidebar();
-    // Keep current mobile view when selecting directly on the map.
+    if (isMobileViewport()) setMobileView('map');
     pushURLState();
   }
 

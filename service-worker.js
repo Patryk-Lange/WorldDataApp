@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'wde-static-v2';
-const RUNTIME_CACHE = 'wde-runtime-v2';
+const STATIC_CACHE = 'wde-static-v3';
+const RUNTIME_CACHE = 'wde-runtime-v3';
 const MAX_RUNTIME_ENTRIES = 120;
 
 const APP_SHELL = [
@@ -43,6 +43,15 @@ async function putRuntimeCache(request, response) {
   await trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES);
 }
 
+async function matchCachedResponse(request) {
+  const runtimeCache = await caches.open(RUNTIME_CACHE);
+  const runtimeMatch = await runtimeCache.match(request);
+  if (runtimeMatch) return runtimeMatch;
+
+  const staticCache = await caches.open(STATIC_CACHE);
+  return staticCache.match(request);
+}
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
@@ -82,7 +91,7 @@ self.addEventListener('fetch', event => {
         }
         return response;
       } catch (_) {
-        const cached = await caches.match(event.request);
+        const cached = await matchCachedResponse(event.request);
         return cached || caches.match('./index.html');
       }
     })());
@@ -90,16 +99,15 @@ self.addEventListener('fetch', event => {
   }
 
   event.respondWith((async () => {
-    const cached = await caches.match(event.request);
-    const networkPromise = fetch(event.request)
-      .then(async response => {
-        if (response && response.ok) {
-          await putRuntimeCache(event.request, response.clone());
-        }
-        return response;
-      })
-      .catch(() => cached);
-
-    return cached || networkPromise;
+    try {
+      const response = await fetch(event.request);
+      if (response && response.ok) {
+        await putRuntimeCache(event.request, response.clone());
+      }
+      return response;
+    } catch (_) {
+      const cached = await matchCachedResponse(event.request);
+      return cached || Response.error();
+    }
   })());
 });
