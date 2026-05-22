@@ -1784,7 +1784,7 @@
 
     applyMapColors();
     renderSidebar();
-    if (isMobileViewport()) setMobileView('data');
+    // Preserve whichever mobile panel the user is currently on.
     pushURLState();
   }
 
