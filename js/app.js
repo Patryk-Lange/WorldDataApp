@@ -11,7 +11,9 @@
   /* ──────────────────────────────────────────────────────────
      Constants
   ────────────────────────────────────────────────────────── */
-  const WORLD_TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+  const WORLD_TOPO_URL = window.location.protocol === 'file:'
+    ? 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+    : 'assets/world/countries-110m.json';
 
   const COLOR_NO_DATA  = '#374151';
   const COLOR_SELECTED = '#3b82f6';
@@ -637,9 +639,12 @@
         .style('stroke-width', '0.4px')
         .style('cursor', 'pointer')
         .attr('role', 'button')
-        .attr('tabindex', '0')
+        .attr('tabindex', '-1')
         .on('mousemove', onMouseMove)
         .on('mouseleave', onMouseLeave)
+        .on('focus', function () {
+          setMapTabStop(this);
+        })
         .on('click', onCountryClick);
 
     // Borders
@@ -713,9 +718,15 @@
       const nextIdx = (currentIdx + direction + focusableCountries.length) % focusableCountries.length;
       const nextEl = focusableCountries[nextIdx];
       if (nextEl && typeof nextEl.focus === 'function') {
+        setMapTabStop(nextEl);
         nextEl.focus();
       }
     });
+
+    const initialCountry = svgG.select('path.country').node();
+    if (initialCountry) {
+      setMapTabStop(initialCountry);
+    }
 
     // Update ARIA labels
     updateAriaLabels();
@@ -824,6 +835,17 @@
     }
   }
 
+  function setMapTabStop(targetEl) {
+    if (!svgG) return;
+    const countries = svgG.selectAll('path.country').nodes();
+    if (!countries.length) return;
+
+    const activeEl = countries.includes(targetEl) ? targetEl : countries[0];
+    countries.forEach(el => {
+      el.setAttribute('tabindex', el === activeEl ? '0' : '-1');
+    });
+  }
+
   /* ──────────────────────────────────────────────────────────
      Map interactions
   ────────────────────────────────────────────────────────── */
@@ -839,7 +861,7 @@
     const val  = a3 && data[a3];
     const ind  = currentIndicator;
     const valText = hasFiniteValue(val)
-      ? fmtVal(ind, val)
+      ? escapeHtml(fmtVal(ind, val))
       : `<span class="no-data-tt">${escapeHtml(t('map.tooltipNoData', {}, '⊘ No data'))}</span>`;
     const safeName = escapeHtml(name);
     const safeLabel = escapeHtml(indicatorPlainLabel(ind));
@@ -856,6 +878,9 @@
 
   function onCountryClick(event, d) {
     event.stopPropagation();
+    if (event.currentTarget instanceof SVGElement) {
+      setMapTabStop(event.currentTarget);
+    }
     const a3 = resolveCountryA3(d.id);
     if (!a3) return;
 
@@ -890,7 +915,7 @@
 
     applyMapColors();
     renderSidebar();
-    if (isMobileViewport()) setMobileView('data');
+    // Keep current mobile view when selecting directly on the map.
     pushURLState();
   }
 
@@ -971,8 +996,13 @@
     const rankLabel = ind.topOrder === 'asc'
       ? t('detail.rankLowest', {}, 'lowest')
       : t('detail.rankHighest', {}, 'highest');
+    const safeCountryCode = escapeHtml(a3);
+    const safeCountryName = escapeHtml(name);
+    const safeRankLabel = escapeHtml(rankLabel);
+    const safeMetricLabel = escapeHtml(indicatorPlainLabel(ind));
+    const safeRegion = region ? escapeHtml(region) : '';
     const rankBadge = rank
-      ? `<span class="rank-badge">#${rank} ${rankLabel}</span>`
+      ? `<span class="rank-badge">#${rank} ${safeRankLabel}</span>`
       : '';
 
     let shareLabel = '';
@@ -982,47 +1012,56 @@
         : t('detail.shareWorldAvg', { share: sharePctText }, `${sharePctText}% of world avg`);
     }
 
+    const safeBookmarkTitle = escapeHtml(isBookmarked
+      ? t('detail.bookmarkRemoveTitle', {}, 'Remove bookmark')
+      : t('detail.bookmarkAddTitle', {}, 'Bookmark this country'));
+    const safeMetricValue = escapeHtml(fmtVal(ind, val));
+    const safeShareLabel = escapeHtml(shareLabel);
+    const safeDataSource = escapeHtml(t('detail.dataSource', {
+      source: indicatorSource(ind),
+      asOf: indicatorAsOf(ind),
+    }, `Source: ${indicatorSource(ind)} · ${indicatorAsOf(ind)}`));
+    const safeNoDataMessage = escapeHtml(t('detail.noData', {
+      indicator: indicatorPlainLabel(ind),
+    }, `No ${indicatorPlainLabel(ind)} data available`));
+    const safeDeselectText = escapeHtml(t('detail.deselect', {}, '✕ Deselect'));
+    const yoyClass = yoy && ['up', 'down', 'neutral'].includes(yoy.cls) ? yoy.cls : 'neutral';
+    const safeYoyText = yoy ? escapeHtml(yoy.text) : '';
+
     const valueBlock = hasFiniteValue(val)
-      ? `<div class="metric-value">${fmtVal(ind, val)}</div>
+      ? `<div class="metric-value">${safeMetricValue}</div>
          ${sharePctText !== null ? `
          <div class="share-block">
            <div class="share-bar-bg">
              <div class="share-bar-fill" style="width:${shareWidth}%"></div>
            </div>
-           <span class="share-label">${shareLabel}</span>
+           <span class="share-label">${safeShareLabel}</span>
          </div>` : ''}
-         ${yoy ? `<div class="yoy-change ${yoy.cls}">${yoy.text}</div>` : ''}
-         <div class="data-source">${t('detail.dataSource', {
-           source: indicatorSource(ind),
-           asOf: indicatorAsOf(ind),
-         }, `Source: ${indicatorSource(ind)} · ${indicatorAsOf(ind)}`)}</div>`
-      : `<div class="no-data-msg">${t('detail.noData', {
-        indicator: indicatorPlainLabel(ind),
-      }, `No ${indicatorPlainLabel(ind)} data available`)}</div>`;
+         ${yoy ? `<div class="yoy-change ${yoyClass}">${safeYoyText}</div>` : ''}
+         <div class="data-source">${safeDataSource}</div>`
+      : `<div class="no-data-msg">${safeNoDataMessage}</div>`;
 
     detailCard.innerHTML = `
       <div class="detail-header">
         <div class="detail-header-top">
           <div>
-            <div class="country-code">${a3}</div>
-            <h2 class="country-name">${name}</h2>
+            <div class="country-code">${safeCountryCode}</div>
+            <h2 class="country-name">${safeCountryName}</h2>
           </div>
           <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}"
-                  title="${isBookmarked
-                    ? t('detail.bookmarkRemoveTitle', {}, 'Remove bookmark')
-                    : t('detail.bookmarkAddTitle', {}, 'Bookmark this country')}"
+                  title="${safeBookmarkTitle}"
                   id="bookmark-btn-${a3}">
             ${isBookmarked ? '★' : '☆'}
           </button>
         </div>
         ${rankBadge}
-        <div class="metric-label">${indicatorPlainLabel(ind)}</div>
-        ${region ? `<div class="country-region">${region}</div>` : ''}
+        <div class="metric-label">${safeMetricLabel}</div>
+        ${region ? `<div class="country-region">${safeRegion}</div>` : ''}
       </div>
       <div class="detail-body">${valueBlock}</div>
       ${buildSparklineHTML(a3, ind.id)}
       ${buildSimilarHTML(a3)}
-      <button class="deselect-btn" id="deselect-btn">${t('detail.deselect', {}, '✕ Deselect')}</button>
+      <button class="deselect-btn" id="deselect-btn">${safeDeselectText}</button>
     `;
 
     document.getElementById(`bookmark-btn-${a3}`).addEventListener('click', () => toggleBookmark(a3));
@@ -1046,17 +1085,17 @@
     if (outliers && (outliers.high.length + outliers.low.length > 0)) {
       const highItems = outliers.high.slice(0,2).map(([a3,v]) =>
         `<button class="outlier-item" type="button" data-a3="${a3}">
-           <strong>${COUNTRY_NAMES[a3] || a3}</strong>
-           <span class="ov-val">${fmtVal(ind, v)}</span>
+           <strong>${escapeHtml(COUNTRY_NAMES[a3] || a3)}</strong>
+           <span class="ov-val">${escapeHtml(fmtVal(ind, v))}</span>
          </button>`).join('');
       const lowItems = outliers.low.slice(0,2).map(([a3,v]) =>
         `<button class="outlier-item low" type="button" data-a3="${a3}">
-           <strong>${COUNTRY_NAMES[a3] || a3}</strong>
-           <span class="ov-val">${fmtVal(ind, v)}</span>
+           <strong>${escapeHtml(COUNTRY_NAMES[a3] || a3)}</strong>
+           <span class="ov-val">${escapeHtml(fmtVal(ind, v))}</span>
          </button>`).join('');
       outlierHTML = `
         <div class="outlier-card">
-          <h4>${t('detail.outliersTitle', {}, 'Notable outliers')}</h4>
+          <h4>${escapeHtml(t('detail.outliersTitle', {}, 'Notable outliers'))}</h4>
           ${highItems}${lowItems}
         </div>`;
     }
@@ -1065,9 +1104,9 @@
     const icon = (indicatorLabel(ind).match(/\p{Emoji_Presentation}/gu) || [])[0] || '🌍';
     detailCard.innerHTML = `
       <div class="hint-card">
-        <div class="hint-icon">${icon}</div>
-        <p>${t('detail.defaultHint', { indicator: label }, `Click any country to compare its ${label}.`)}</p>
-        <p class="hint-sub">${t('detail.defaultHintSub', {}, 'Click more countries to compare up to 5')}</p>
+        <div class="hint-icon">${escapeHtml(icon)}</div>
+        <p>${escapeHtml(t('detail.defaultHint', { indicator: label }, `Click any country to compare its ${label}.`))}</p>
+        <p class="hint-sub">${escapeHtml(t('detail.defaultHintSub', {}, 'Click more countries to compare up to 5'))}</p>
       </div>
       ${outlierHTML}
     `;
@@ -1092,16 +1131,16 @@
       return `
         <div class="cmp-row" data-a3="${a3}">
           <div class="cmp-color-dot" style="background:${color}"></div>
-          <div class="cmp-name">${COUNTRY_NAMES[a3] || a3}</div>
+          <div class="cmp-name">${escapeHtml(COUNTRY_NAMES[a3] || a3)}</div>
           <div class="cmp-rank">${rank ? '#'+rank : '—'}</div>
-          <div class="cmp-val">${hasFiniteValue(val) ? fmtVal(ind, val) : '—'}</div>
-          <button class="cmp-remove" data-a3="${a3}" title="${t('comparison.removeTitle', {}, 'Remove')}">✕</button>
+          <div class="cmp-val">${hasFiniteValue(val) ? escapeHtml(fmtVal(ind, val)) : '—'}</div>
+          <button class="cmp-remove" data-a3="${a3}" title="${escapeHtml(t('comparison.removeTitle', {}, 'Remove'))}">✕</button>
         </div>`;
     }).join('');
 
     compPanel.innerHTML = `
-      <h4>${t('comparison.heading', { count: comparisonA3s.length }, `Comparing ${comparisonA3s.length} countries`)}
-        <button id="clear-comparison">${t('comparison.clearAll', {}, 'Clear all')}</button>
+      <h4>${escapeHtml(t('comparison.heading', { count: comparisonA3s.length }, `Comparing ${comparisonA3s.length} countries`))}
+        <button id="clear-comparison">${escapeHtml(t('comparison.clearAll', {}, 'Clear all'))}</button>
       </h4>
       ${rows}
       <svg id="cmp-bar-chart" height="0"></svg>
@@ -1436,7 +1475,7 @@
           tooltipEl.style.display = 'block';
           tooltipEl.style.left = (e.clientX + 12) + 'px';
           tooltipEl.style.top  = (e.clientY - 30) + 'px';
-          tooltipEl.innerHTML  = `<strong>${d.year}</strong><br>${fmtVal(ind, d.val)}`;
+          tooltipEl.innerHTML  = `<strong>${escapeHtml(d.year)}</strong><br>${escapeHtml(fmtVal(ind, d.val))}`;
         })
         .on('mouseleave', onMouseLeave);
     });
@@ -1449,11 +1488,11 @@
     const similar = computeSimilar(a3);
     if (!similar.length) return '';
     const chips = similar.map(s =>
-      `<button class="similar-chip" type="button" data-a3="${s.a3}" title="${s.dims}">
-        ${COUNTRY_NAMES[s.a3] || s.a3}
-        <span class="sim-pct">${s.pct}%</span>
+      `<button class="similar-chip" type="button" data-a3="${s.a3}" title="${escapeHtml(s.dims)}">
+        ${escapeHtml(COUNTRY_NAMES[s.a3] || s.a3)}
+        <span class="sim-pct">${escapeHtml(s.pct)}%</span>
       </button>`).join('');
-    return `<div class="similar-section"><h4>${t('detail.similarTitle', {}, 'Similar economies')}</h4><div class="similar-chips">${chips}</div></div>`;
+    return `<div class="similar-section"><h4>${escapeHtml(t('detail.similarTitle', {}, 'Similar economies'))}</h4><div class="similar-chips">${chips}</div></div>`;
   }
 
   function bindSimilarChips(a3) {
@@ -1558,25 +1597,38 @@
       worseText  = t('legend.lowerValue', {}, 'Lower value');
     }
 
+    const safeLegendTitle = escapeHtml(t('legend.title', {}, 'Map Key'));
+    const safeThresholdButton = escapeHtml(t('legend.thresholdButton', {}, 'Thresholds'));
+    const safeSelectedCountry = escapeHtml(t('legend.selectedCountry', {}, 'Selected country'));
+    const safeBetterText = escapeHtml(betterText);
+    const safeWorseText = escapeHtml(worseText);
+    const safeNoDataText = escapeHtml(t('legend.noData', {}, 'No data / unselected'));
+    const safeThresholdsTitle = escapeHtml(t('legend.thresholdsTitle', {}, 'Comparison thresholds'));
+    const safeRelativeText = escapeHtml(t('legend.relative', {}, 'Relative (%)'));
+    const safeAbsoluteText = escapeHtml(t('legend.absolute', {}, 'Absolute'));
+    const safeThresholdText = escapeHtml(t('legend.threshold', {}, 'Threshold:'));
+    const safeResetText = escapeHtml(t('legend.resetDefaults', {}, 'Reset to defaults'));
+    const safeThresholdUnit = thresholdMode === 'relative' ? '%' : escapeHtml(indicatorUnit(ind));
+
     legendEl.innerHTML = `
-      <h4>${t('legend.title', {}, 'Map Key')} <button class="threshold-btn" id="threshold-btn">${t('legend.thresholdButton', {}, '⚙ Thresholds')}</button></h4>
-      <div class="legend-row"><span class="legend-swatch" style="background:#3b82f6"></span> ${t('legend.selectedCountry', {}, 'Selected country')}</div>
-      <div class="legend-row"><span class="legend-swatch" style="background:#22c55e"></span> ${betterText}</div>
-      <div class="legend-row"><span class="legend-swatch" style="background:#ef4444"></span> ${worseText}</div>
-      <div class="legend-row"><span class="legend-swatch" style="background:#374151"></span> ${t('legend.noData', {}, 'No data / unselected')}</div>
+      <h4>${safeLegendTitle} <button class="threshold-btn" id="threshold-btn">${safeThresholdButton}</button></h4>
+      <div class="legend-row"><span class="legend-swatch" style="background:#3b82f6"></span> ${safeSelectedCountry}</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#22c55e"></span> ${safeBetterText}</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#ef4444"></span> ${safeWorseText}</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#374151"></span> ${safeNoDataText}</div>
       <div class="threshold-popover" id="threshold-popover">
-        <h5>${t('legend.thresholdsTitle', {}, 'Comparison thresholds')}</h5>
+        <h5>${safeThresholdsTitle}</h5>
         <div class="threshold-mode-toggle">
-          <button id="thresh-relative" class="${thresholdMode === 'relative' ? 'active' : ''}">${t('legend.relative', {}, 'Relative (%)')}</button>
-          <button id="thresh-absolute" class="${thresholdMode === 'absolute' ? 'active' : ''}">${t('legend.absolute', {}, 'Absolute')}</button>
+          <button id="thresh-relative" class="${thresholdMode === 'relative' ? 'active' : ''}">${safeRelativeText}</button>
+          <button id="thresh-absolute" class="${thresholdMode === 'absolute' ? 'active' : ''}">${safeAbsoluteText}</button>
         </div>
         <div class="threshold-row">
-          <span>${t('legend.threshold', {}, 'Threshold:')}</span>
+          <span>${safeThresholdText}</span>
           <input type="number" id="threshold-val" value="${thresholdValue}" min="0" step="1">
-          <span>${thresholdMode === 'relative' ? '%' : indicatorUnit(ind)}</span>
+          <span>${safeThresholdUnit}</span>
         </div>
         <div class="threshold-footer">
-          <button id="threshold-reset">${t('legend.resetDefaults', {}, 'Reset to defaults')}</button>
+          <button id="threshold-reset">${safeResetText}</button>
         </div>
       </div>
     `;
@@ -1724,6 +1776,11 @@
       comparisonMode = false;
     }
     selectedA3 = comparisonMode ? null : a3;
+
+    const focusedCountryPath = svgG ? svgG.select(`path.country[data-a3="${a3}"]`).node() : null;
+    if (focusedCountryPath) {
+      setMapTabStop(focusedCountryPath);
+    }
 
     applyMapColors();
     renderSidebar();
@@ -1884,8 +1941,8 @@
       searchResults.innerHTML = results.map((a3, idx) => {
         const val = data[a3];
         return `<div class="search-result-item" role="option" aria-selected="false" id="search-result-${idx}-${a3}" data-a3="${a3}">
-          <span class="sr-name">${COUNTRY_NAMES[a3] || a3}</span>
-          <span class="sr-val">${hasFiniteValue(val) ? fmtVal(ind, val) : '—'}</span>
+          <span class="sr-name">${escapeHtml(COUNTRY_NAMES[a3] || a3)}</span>
+          <span class="sr-val">${hasFiniteValue(val) ? escapeHtml(fmtVal(ind, val)) : '—'}</span>
         </div>`;
       }).join('');
 
@@ -2106,8 +2163,15 @@
   function addFilterChip(label, onRemove) {
     const chip = document.createElement('span');
     chip.className = 'filter-chip';
-    chip.innerHTML = `${label} <button>✕</button>`;
-    chip.querySelector('button').addEventListener('click', onRemove);
+    const text = document.createElement('span');
+    text.textContent = label;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '✕';
+    btn.addEventListener('click', onRemove);
+    chip.appendChild(text);
+    chip.appendChild(document.createTextNode(' '));
+    chip.appendChild(btn);
     filterChips.appendChild(chip);
   }
 
@@ -2176,20 +2240,24 @@
 
     if (!bookmarks.size) {
       pendingWatchlistClearUntil = 0;
-      watchlistBody.innerHTML = `<div class="watchlist-empty">${t('watchlist.empty', {}, 'Click ☆ on any country to bookmark it.')}</div>`;
+      watchlistBody.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'watchlist-empty';
+      empty.textContent = t('watchlist.empty', {}, 'Click ☆ on any country to bookmark it.');
+      watchlistBody.appendChild(empty);
       return;
     }
 
     const items = [...bookmarks].map(a3 => {
       const val = data[a3];
       return `<div class="watchlist-item">
-        <button class="wl-name" type="button" data-a3="${a3}">${COUNTRY_NAMES[a3] || a3}</button>
-        <span class="wl-val">${hasFiniteValue(val) ? fmtVal(ind, val) : '—'}</span>
-        <button class="wl-remove" data-a3="${a3}" title="${t('watchlist.removeTitle', {}, 'Remove bookmark')}">✕</button>
+        <button class="wl-name" type="button" data-a3="${a3}">${escapeHtml(COUNTRY_NAMES[a3] || a3)}</button>
+        <span class="wl-val">${hasFiniteValue(val) ? escapeHtml(fmtVal(ind, val)) : '—'}</span>
+        <button class="wl-remove" data-a3="${a3}" title="${escapeHtml(t('watchlist.removeTitle', {}, 'Remove bookmark'))}">✕</button>
       </div>`;
     }).join('');
 
-    watchlistBody.innerHTML = items + `<button class="watchlist-clear" id="watchlist-clear-all">${t('watchlist.clearAll', {}, 'Clear all')}</button>`;
+    watchlistBody.innerHTML = items + `<button class="watchlist-clear" id="watchlist-clear-all">${escapeHtml(t('watchlist.clearAll', {}, 'Clear all'))}</button>`;
 
     watchlistBody.querySelectorAll('.wl-name[data-a3]').forEach(el => {
       el.addEventListener('click', () => focusCountry(el.dataset.a3));
@@ -2530,6 +2598,12 @@
     }
   }
 
+  function csvCell(value, protectFormula) {
+    const raw = value === null || value === undefined ? '' : String(value);
+    const normalized = protectFormula && /^[\s\t]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+
   function exportCSV() {
     try {
       const ind  = currentIndicator;
@@ -2542,10 +2616,14 @@
       }
 
       const label = indicatorPlainLabel(ind);
-      const header = t('export.csvHeader', { indicator: label }, `ISO-Alpha3,Country,${label},Rank,Region`) + '\n';
-      const rows = candidates.map(([a3, val]) =>
-        `${a3},"${COUNTRY_NAMES[a3] || a3}",${val},${ranks[a3] || ''},${getLocalizedCountryRegion(a3) || ''}`
-      ).join('\n');
+      const header = `ISO-Alpha3,Country,${label},Rank,Region\n`;
+      const rows = candidates.map(([a3, val]) => [
+        csvCell(a3, true),
+        csvCell(COUNTRY_NAMES[a3] || a3, true),
+        Number.isFinite(val) ? String(val) : '',
+        Number.isFinite(ranks[a3]) ? String(ranks[a3]) : '',
+        csvCell(getLocalizedCountryRegion(a3) || '', true)
+      ].join(',')).join('\n');
 
       const blob = new Blob([header + rows], { type: 'text/csv' });
       const url  = URL.createObjectURL(blob);
@@ -2795,7 +2873,7 @@
           tooltipEl.style.display = 'block';
           tooltipEl.style.left = (ev.clientX + 12) + 'px';
           tooltipEl.style.top  = (ev.clientY - 30) + 'px';
-          tooltipEl.innerHTML  = `<strong>${escapeHtml(e.name)}</strong><br>${escapeHtml(indicatorPlainLabel(correlX))}: ${fmtVal(correlX, e.x)}<br>${escapeHtml(indicatorPlainLabel(correlY))}: ${fmtVal(correlY, e.y)}`;
+          tooltipEl.innerHTML  = `<strong>${escapeHtml(e.name)}</strong><br>${escapeHtml(indicatorPlainLabel(correlX))}: ${escapeHtml(fmtVal(correlX, e.x))}<br>${escapeHtml(indicatorPlainLabel(correlY))}: ${escapeHtml(fmtVal(correlY, e.y))}`;
         })
         .on('mouseleave', function () {
           d3.select(this).attr('r', r).attr('opacity', 0.7);

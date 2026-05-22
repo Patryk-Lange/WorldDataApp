@@ -410,4 +410,26 @@ test.describe('World Data Explorer - E2E Tests', () => {
     console.log('✓ Test 25 PASSED: Mobile control sizes and text readability are within baseline');
   });
 
+  test('Test 26: Mobile map country tap keeps map view active', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(APP_URL);
+    await waitForAppReady(page);
+
+    const app = page.locator('#app');
+    await expect(app).toHaveClass(/mobile-view-map/);
+
+    const clicked = await page.evaluate(() => {
+      const target = document.querySelector('path.country[data-a3="BRA"]');
+      if (!target) return false;
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+      return true;
+    });
+
+    expect(clicked).toBe(true);
+    await expect(app).toHaveClass(/mobile-view-map/);
+    await expect(page.locator('#detail-card .country-code')).toContainText('BRA');
+
+    console.log('✓ Test 26 PASSED: Mobile map tap keeps map panel active while selecting country');
+  });
+
 });

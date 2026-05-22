@@ -25,7 +25,14 @@ Include:
 ## Security Hardening in This Repo
 
 - Content Security Policy and referrer policy in index.html
+- Frame embedding guard (js/frameguard.js) to block clickjacking attempts on static hosts without configurable response headers
 - Subresource Integrity (SRI) on CDN-loaded scripts
 - Non-blocking UI feedback in place of blocking dialogs for safer UX flows
 - Automated E2E regression checks through Playwright
 - CI workflow to enforce lint and test gates on pushes and pull requests
+
+## Hosting Note
+
+GitHub Pages does not provide per-site custom response header management for strict header policies like `Content-Security-Policy` and `X-Frame-Options`.
+
+For strict production-grade header enforcement, place the site behind a reverse proxy/CDN layer that can set security headers (for example Cloudflare on a custom domain).

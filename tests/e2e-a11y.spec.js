@@ -17,11 +17,7 @@ function formatViolations(violations) {
 }
 
 async function expectNoSeriousViolations(page) {
-  const results = await new AxeBuilder({ page })
-    // Color contrast requires a broader design refactor and can be noisy in
-    // synthetic browser environments; keep this gate focused on structural a11y.
-    .disableRules(['color-contrast'])
-    .analyze();
+  const results = await new AxeBuilder({ page }).analyze();
 
   const severe = results.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
   expect(severe, formatViolations(severe)).toEqual([]);

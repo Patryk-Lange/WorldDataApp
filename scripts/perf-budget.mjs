@@ -9,6 +9,8 @@ const reportsDir = path.join(rootDir, 'reports', 'perf');
 const latestPath = path.join(reportsDir, 'latest.json');
 const baselinePath = path.join(reportsDir, 'baseline.json');
 const updateBaseline = process.argv.includes('--update-baseline');
+const sampleCount = Math.max(1, Number.parseInt(process.env.PERF_SAMPLE_COUNT || '3', 10) || 3);
+const warmupRuns = Math.max(0, Number.parseInt(process.env.PERF_WARMUP_RUNS || '1', 10) || 1);
 
 const appUrl = process.env.APP_URL || pathToFileURL(path.resolve(rootDir, 'index.html')).href;
 
@@ -18,48 +20,95 @@ function round(value) {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
 }
 
-function getResourceBytes(entry) {
-  return entry.transferSize || entry.encodedBodySize || entry.decodedBodySize || 0;
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
-const page = await context.newPage();
+async function measurePage(context, url) {
+  const page = await context.newPage();
+  const started = Date.now();
 
-const startedAt = Date.now();
-await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-await page.waitForFunction(() => document.documentElement.getAttribute('data-app-ready') === 'true', { timeout: 60000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-app-ready') === 'true', { timeout: 60000 });
 
-const measured = await page.evaluate(() => {
-  const nav = performance.getEntriesByType('navigation')[0];
-  const resources = performance.getEntriesByType('resource');
-  const paints = performance.getEntriesByType('paint');
-  const fcp = paints.find(entry => entry.name === 'first-contentful-paint');
+  const measured = await page.evaluate(() => {
+    const nav = performance.getEntriesByType('navigation')[0];
+    const resources = performance.getEntriesByType('resource');
+    const paints = performance.getEntriesByType('paint');
+    const fcp = paints.find(entry => entry.name === 'first-contentful-paint');
 
-  const totalBytes = resources.reduce((sum, entry) => {
-    const size = entry.transferSize || entry.encodedBodySize || entry.decodedBodySize || 0;
-    return sum + size;
-  }, 0);
-
-  const totalScriptBytes = resources
-    .filter(entry => entry.initiatorType === 'script')
-    .reduce((sum, entry) => {
+    const totalBytes = resources.reduce((sum, entry) => {
       const size = entry.transferSize || entry.encodedBodySize || entry.decodedBodySize || 0;
       return sum + size;
     }, 0);
 
+    const totalScriptBytes = resources
+      .filter(entry => entry.initiatorType === 'script')
+      .reduce((sum, entry) => {
+        const size = entry.transferSize || entry.encodedBodySize || entry.decodedBodySize || 0;
+        return sum + size;
+      }, 0);
+
+    return {
+      appReadyMs: performance.now(),
+      domContentLoadedMs: nav ? nav.domContentLoadedEventEnd : null,
+      loadMs: nav ? nav.loadEventEnd : null,
+      firstContentfulPaintMs: fcp ? fcp.startTime : null,
+      resourceCount: resources.length,
+      transferSizeBytes: totalBytes,
+      totalScriptBytes,
+    };
+  });
+
+  await page.close();
   return {
-    appReadyMs: performance.now(),
-    domContentLoadedMs: nav ? nav.domContentLoadedEventEnd : null,
-    loadMs: nav ? nav.loadEventEnd : null,
-    firstContentfulPaintMs: fcp ? fcp.startTime : null,
-    resourceCount: resources.length,
-    transferSizeBytes: totalBytes,
-    totalScriptBytes,
+    ...measured,
+    elapsedWallClockMs: Date.now() - started,
   };
-});
+}
+
+function aggregateSamples(samples) {
+  const keys = [
+    'appReadyMs',
+    'domContentLoadedMs',
+    'loadMs',
+    'firstContentfulPaintMs',
+    'resourceCount',
+    'transferSizeBytes',
+    'totalScriptBytes',
+    'elapsedWallClockMs',
+  ];
+
+  const aggregated = {};
+  keys.forEach(key => {
+    const values = samples.map(sample => sample[key]).filter(Number.isFinite);
+    aggregated[key] = values.length ? round(median(values)) : null;
+  });
+  return aggregated;
+}
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+
+const startedAt = Date.now();
+
+for (let i = 0; i < warmupRuns; i++) {
+  await measurePage(context, appUrl);
+}
+
+const samples = [];
+for (let i = 0; i < sampleCount; i++) {
+  samples.push(await measurePage(context, appUrl));
+}
 
 await browser.close();
+
+const measured = aggregateSamples(samples);
 
 const metrics = {
   appReadyMs: round(measured.appReadyMs),
@@ -71,6 +120,8 @@ const metrics = {
   totalScriptBytes: measured.totalScriptBytes,
   measuredAt: new Date().toISOString(),
   elapsedWallClockMs: Date.now() - startedAt,
+  perfSampleCount: sampleCount,
+  perfWarmupRuns: warmupRuns,
   appUrl,
 };
 
@@ -137,6 +188,16 @@ if (baseline) {
 const report = {
   budgets,
   metrics,
+  samples: samples.map(sample => ({
+    appReadyMs: round(sample.appReadyMs),
+    domContentLoadedMs: round(sample.domContentLoadedMs),
+    loadMs: round(sample.loadMs),
+    firstContentfulPaintMs: round(sample.firstContentfulPaintMs),
+    resourceCount: sample.resourceCount,
+    transferSizeBytes: sample.transferSizeBytes,
+    totalScriptBytes: sample.totalScriptBytes,
+    elapsedWallClockMs: sample.elapsedWallClockMs,
+  })),
   checks: results,
   baselineComparisons,
   pass: failures.length === 0,

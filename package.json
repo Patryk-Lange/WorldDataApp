@@ -16,7 +16,7 @@
     "perf:baseline": "node scripts/perf-budget.mjs --update-baseline",
     "test:smoke": "playwright test tests/e2e-simple.spec.js",
     "test:critical": "playwright test tests/e2e-critical.spec.js",
-    "test:all": "npm run test && npm run perf:check"
+    "test:all": "npm run test && npm run test:a11y && npm run perf:check && npm run test:visual"
   },
   "keywords": [
     "d3",

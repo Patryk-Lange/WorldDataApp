@@ -1,10 +1,13 @@
-const CACHE_NAME = 'wde-cache-v1';
+const STATIC_CACHE = 'wde-static-v2';
+const RUNTIME_CACHE = 'wde-runtime-v2';
+const MAX_RUNTIME_ENTRIES = 120;
 
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/style.css',
+  './js/frameguard.js',
   './js/app.js',
   './js/i18n.js',
   './js/config.js',
@@ -23,14 +26,26 @@ const APP_SHELL = [
   './data/history.js',
   './data/regions.js',
   './assets/icon.svg',
-  'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js',
-  'https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js',
-  'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+  './assets/world/countries-110m.json'
 ];
+
+async function trimCache(cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  await cache.delete(keys[0]);
+  await trimCache(cacheName, maxEntries);
+}
+
+async function putRuntimeCache(request, response) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  await cache.put(request, response);
+  await trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES);
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then(cache => cache.addAll(APP_SHELL))
       .catch(() => undefined)
   );
@@ -42,7 +57,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
           .map(key => caches.delete(key))
       )
     )
@@ -54,38 +69,37 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const requestUrl = new URL(event.request.url);
-
-  // Offline-first document navigation fallback.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request).then(hit => hit || caches.match('./index.html')))
-    );
+  if (requestUrl.origin !== self.location.origin) {
     return;
   }
 
-  const isSameOrigin = requestUrl.origin === self.location.origin;
-  const isJsDelivr = requestUrl.origin === 'https://cdn.jsdelivr.net';
-  if (!isSameOrigin && !isJsDelivr) return;
+  if (event.request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(event.request);
+        if (response && response.ok) {
+          await putRuntimeCache(event.request, response.clone());
+        }
+        return response;
+      } catch (_) {
+        const cached = await caches.match(event.request);
+        return cached || caches.match('./index.html');
+      }
+    })());
+    return;
+  }
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      const networkFetch = fetch(event.request)
-        .then(response => {
-          if (response && (response.ok || response.type === 'opaque')) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
+  event.respondWith((async () => {
+    const cached = await caches.match(event.request);
+    const networkPromise = fetch(event.request)
+      .then(async response => {
+        if (response && response.ok) {
+          await putRuntimeCache(event.request, response.clone());
+        }
+        return response;
+      })
+      .catch(() => cached);
 
-      return cached || networkFetch;
-    })
-  );
+    return cached || networkPromise;
+  })());
 });
